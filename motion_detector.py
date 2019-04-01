@@ -45,7 +45,7 @@ def detect_motion(camera):
         current_image = stream_to_gray(stream)
         # Compare current_image to prior_image to detect motion. This is
         # left as an exercise for the reader!
-        result = len(diff(prior_image, current_image)) == 0
+        result = len(diff(prior_image, current_image)[0]) > 0
         # Once motion detection is done, make the prior image the current
         prior_image = current_image
         return result
@@ -69,8 +69,9 @@ def write_video(stream):
 
 if __name__ == '__main__':
     with picamera.PiCamera() as camera:
-        camera.resolution = (1280, 720)
+        camera.resolution = (WIDTH, HIGTH)
         stream = picamera.PiCameraCircularIO(camera, seconds=10)
+        print('start recording')
         camera.start_recording(stream, format='h264')
         detect_time = datetime.now() - timedelta(0, 60*30)
         try:
@@ -89,5 +90,7 @@ if __name__ == '__main__':
                         camera.wait_recording(1)
                     print('Motion stopped!')
                     camera.split_recording(stream)
+                else:
+                    print('No motion')
         finally:
             camera.stop_recording()
