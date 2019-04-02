@@ -11,7 +11,7 @@ WIDTH = 1024
 HIGTH = 768
 after_record_time = 2
 sample_rate = 1
-storage_path = '/home/pi/Pictures/secure_test'
+storage_path = '/home/pi/Pictures'
 prior_image = None
 
 def get_timestamp():
@@ -61,7 +61,7 @@ def detect_motion(camera):
 def write_video(stream):
     # Write the entire content of the circular buffer to disk. No need to
     # lock the stream here as we're definitely not writing to it simultaneously
-    with io.open(get_timestamp()+'-before.h264', 'wb') as output:
+    with io.open(os.path.join(storage_path, get_timestamp()+'-before.h264'), 'wb') as output:
         for frame in stream.frames:
             if frame.frame_type == picamera.PiVideoFrameType.sps_header:
                 stream.seek(frame.position)
@@ -81,6 +81,7 @@ if __name__ == '__main__':
         stream = picamera.PiCameraCircularIO(camera, seconds=10)
         print('start recording')
         camera.start_recording(stream, format='h264', quality=25)
+        camera.wait_recording(2)
         detect_time = datetime.now() - timedelta(0, 60*30)
         try:
             while True:
@@ -88,10 +89,11 @@ if __name__ == '__main__':
                 if detect_motion(camera):
                     print('Motion detected!')
                     if datetime.now() - detect_time > timedelta(0, 60*30):
-                        os.system('python3 /home/pi/scripts/send_email.py anto_mozomi@126.com '+get_timestamp()+'-motion-detects')
+                        os.system('python3 /home/pi/scripts/send_email.py anto_nozomi@126.com '+get_timestamp()+'-motion-detects')
+                        detect_time = datetime.now()
                     # As soon as we detect motion, split the recording to
                     # record the frames "after" motion
-                    camera.split_recording(get_timestamp()+'-after.h264')
+                    camera.split_recording(os.path.join(storage_path, get_timestamp()+'-after.h264'))
                     # Write the 10 seconds "before" motion to disk as well
                     write_video(stream)
                     # Wait until motion is no longer detected, then split
