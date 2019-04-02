@@ -1,4 +1,4 @@
-import io
+import io, os
 from time import sleep
 from datetime import datetime, timedelta
 import picamera
@@ -11,6 +11,7 @@ WIDTH = 1024
 HIGTH = 768
 after_record_time = 2
 sample_rate = 1
+storage_path = '/home/pi/Pictures/secure_test'
 prior_image = None
 
 def get_timestamp():
@@ -85,9 +86,9 @@ if __name__ == '__main__':
             while True:
                 camera.wait_recording(sample_rate)
                 if detect_motion(camera):
-                    if datetime.now() - detect_time > timedelta(0, 60*30):
-                        pass 
                     print('Motion detected!')
+                    if datetime.now() - detect_time > timedelta(0, 60*30):
+                        os.system('python3 /home/pi/scripts/send_email.py anto_mozomi@126.com '+get_timestamp()+'-motion-detects')
                     # As soon as we detect motion, split the recording to
                     # record the frames "after" motion
                     camera.split_recording(get_timestamp()+'-after.h264')
