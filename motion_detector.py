@@ -9,7 +9,12 @@ import imutils
 MIN_AREA = 500
 WIDTH = 1024
 HIGTH = 768
+after_record_time = 2
+sample_rate = 1
 prior_image = None
+
+def get_timestamp():
+    return datetime.strftime(datetime.now(), '%Y%m%d%H%M%S')
 
 def diff(frame1, frame2):
     # compute the absolute difference between the current frame and first frame
@@ -24,10 +29,12 @@ def diff(frame1, frame2):
     for c in cnts:
         if cv2.contourArea(c) >= MIN_AREA:
             objs.append(cv2.boundingRect(c))
-    return objs, thresh
+    #cv2.imwrite(get_timestamp()+'-d.jpg', thresh)
+    return objs
 
 def stream_to_gray(stream):
-    image = np.frombuffer(stream.read(), dtype=np.uint8).reshape(WIDTH, HIGTH, 3)
+    image = np.frombuffer(stream.read(), dtype=np.uint8).reshape(HIGTH, WIDTH, 3)
+    #cv2.imwrite(get_timestamp()+'-o.jpg', image)
     image = imutils.resize(image, width=500)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     image = cv2.GaussianBlur(image, (21, 21), 0)
@@ -45,7 +52,7 @@ def detect_motion(camera):
         current_image = stream_to_gray(stream)
         # Compare current_image to prior_image to detect motion. This is
         # left as an exercise for the reader!
-        result = len(diff(prior_image, current_image)[0]) > 0
+        result = len(diff(prior_image, current_image)) > 0
         # Once motion detection is done, make the prior image the current
         prior_image = current_image
         return result
@@ -53,7 +60,7 @@ def detect_motion(camera):
 def write_video(stream):
     # Write the entire content of the circular buffer to disk. No need to
     # lock the stream here as we're definitely not writing to it simultaneously
-    with io.open('before.h264', 'wb') as output:
+    with io.open(get_timestamp()+'-before.h264', 'wb') as output:
         for frame in stream.frames:
             if frame.frame_type == picamera.PiVideoFrameType.sps_header:
                 stream.seek(frame.position)
@@ -72,22 +79,24 @@ if __name__ == '__main__':
         camera.resolution = (WIDTH, HIGTH)
         stream = picamera.PiCameraCircularIO(camera, seconds=10)
         print('start recording')
-        camera.start_recording(stream, format='h264')
+        camera.start_recording(stream, format='h264', quality=25)
         detect_time = datetime.now() - timedelta(0, 60*30)
         try:
             while True:
-                camera.wait_recording(1)
+                camera.wait_recording(sample_rate)
                 if detect_motion(camera):
+                    if datetime.now() - detect_time > timedelta(0, 60*30):
+                        pass 
                     print('Motion detected!')
                     # As soon as we detect motion, split the recording to
                     # record the frames "after" motion
-                    camera.split_recording('after.h264')
+                    camera.split_recording(get_timestamp()+'-after.h264')
                     # Write the 10 seconds "before" motion to disk as well
                     write_video(stream)
                     # Wait until motion is no longer detected, then split
                     # recording back to the in-memory circular buffer
                     while detect_motion(camera):
-                        camera.wait_recording(1)
+                        camera.wait_recording(after_record_time)
                     print('Motion stopped!')
                     camera.split_recording(stream)
                 else:
