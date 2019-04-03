@@ -7,15 +7,20 @@ import numpy as np
 import imutils
 
 MIN_AREA = 100
-WIDTH = 1024
-HIGTH = 768
+WIDTH = 640
+HIGTH = 480
 email_freq = 30*60
 sample_rate = 3
 storage_path = '/home/pi/Pictures'
 prior_image = None
 
 def ts_str():
-    return datetime.strftime(datetime.now(), '%Y%m%d%H%M%S')
+    return datetime.now().strftime('%Y%m%d-%H%M%S')
+
+def wait(camera, sec):
+    for i in range(sec):
+        camera.annotate_text = ts_str()
+        camera.wait_recording(1)
 
 def diff(frame1, frame2):
     # compute the absolute difference between the current frame and first frame
@@ -59,6 +64,8 @@ def detect_motion(camera):
 if __name__ == '__main__':
     with picamera.PiCamera() as camera:
         camera.resolution = (WIDTH, HIGTH)
+        camera.annotate_text_size = 20
+        camera.annotate_text = ts_str()
         stream = picamera.PiCameraCircularIO(camera, seconds=10)
         print('start recording')
         camera.start_recording(stream, format='h264', quality=25)
@@ -66,7 +73,7 @@ if __name__ == '__main__':
         last_detect = datetime.now() - timedelta(0, email_freq)
         try:
             while True:
-                camera.wait_recording(sample_rate)
+                wait(camera, 3)
                 if detect_motion(camera):
                     print('Motion detected!')
                     prefix = os.path.join(storage_path, ts_str())
@@ -84,12 +91,13 @@ if __name__ == '__main__':
                     stream.clear()
                     # Wait until motion is no longer detected, then split
                     # recording back to the in-memory circular buffer
-                    camera.wait_recording(sample_rate)
+                    wait(camera, 3)
                     while detect_motion(camera):
-                        camera.wait_recording(sample_rate)
+                        wait(camera, 3)
                     print('Motion stopped!')
                     camera.split_recording(stream)
                 else:
                     print('No motion')
         finally:
             camera.stop_recording()
+
