@@ -73,9 +73,9 @@ if __name__ == '__main__':
         camera.resolution = (WIDTH, HIGTH)
         camera.annotate_text_size = 20
         camera.annotate_text = ts_str()
-        stream = picamera.PiCameraCircularIO(camera, seconds=10)
+        cache_stream = picamera.PiCameraCircularIO(camera, seconds=10)
         print('start recording')
-        camera.start_recording(stream, format='h264', quality=25)
+        camera.start_recording(cache_stream, format='h264', quality=25)
         camera.wait_recording(2)
         last_detect = datetime.now() - timedelta(0, email_freq)
         try:
@@ -96,23 +96,40 @@ if __name__ == '__main__':
                     # As soon as we detect motion, split the recording to
                     # record the frames "after" motion
                     # Write the 10 seconds "before" motion to disk as well
-                    record = io.BytesIO()
-                    stream.copy_to(record, seconds=10)
+                    before = io.BytesIO()
+                    cache_stream.copy_to(before, seconds=10)
                     ts = ts_str()
-                    pos = conn.storeFileFromOffset(share.name, 'test/'+ts+'.h264', record)
-                    stream.clear()
-                    camera.split_recording(record)
+                    pos = conn.storeFileFromOffset(share.name, 'test/'+ts+'.h264', before)
+                    cache_stream.clear()
+                    stream = io.BytesIO()
+                    stream_1 = io.BytesIO()
+                    using_stream = True
+                    camera.split_recording(stream)
                     wait(camera, 3)
                     # Wait until motion is no longer detected, then split
                     # recording back to the in-memory circular buffer
                     while detect_motion(camera):
-                        record.seek(0)
-                        pos = conn.storeFileFromOffset(share.name, 'test/'+ts+'.h264', record, pos)
-                        record.truncate(0)
-                        wait(camera, 3)
-                    camera.split_recording(stream)
-                    record.seek(0)
-                    pos = conn.storeFileFromOffset(share.name, 'test/'+ts+'.h264', record, pos)
+                        if using_stream:
+                            stream_1.truncate(0)
+                            camera.split_recording(stream_1)
+                            using_stream = False
+                            stream.seek(0)
+                            pos = conn.storeFileFromOffset(share.name, 'test/'+ts+'.h264', stream, pos)
+                            wait(camera, 3)
+                        else:
+                            stream.truncate(0)
+                            camera.split_recording(stream)
+                            using_stream = True
+                            stream_1.seek(0)
+                            pos = conn.storeFileFromOffset(share.name, 'test/'+ts+'.h264', stream_1, pos)
+                            wait(camera, 3)
+                    camera.split_recording(cache_stream)
+                    if using_stream:
+                        stream.seek(0)
+                        pos = conn.storeFileFromOffset(share.name, 'test/'+ts+'.h264', stream, pos)
+                    else:
+                        stream_1.seek(0)
+                        pos = conn.storeFileFromOffset(share.name, 'test/'+ts+'.h264', stream_1, pos)
                     print('Motion stopped!')
                 else:
                     print('No motion')
