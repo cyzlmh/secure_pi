@@ -98,17 +98,22 @@ if __name__ == '__main__':
                     # Write the 10 seconds "before" motion to disk as well
                     record = io.BytesIO()
                     stream.copy_to(record, seconds=10)
+                    ts = ts_str()
+                    pos = conn.storeFileFromOffset(share.name, 'test/'+ts+'.h264', record)
                     stream.clear()
                     camera.split_recording(record)
                     wait(camera, 3)
                     # Wait until motion is no longer detected, then split
                     # recording back to the in-memory circular buffer
                     while detect_motion(camera):
+                        record.seek(0)
+                        pos = conn.storeFileFromOffset(share.name, 'test/'+ts+'.h264', record, pos)
+                        record.truncate(0)
                         wait(camera, 3)
-                    print('Motion stopped!')
                     camera.split_recording(stream)
                     record.seek(0)
-                    conn.storeFile(share.name, 'test/'+ts_str()+'.h264', record)
+                    pos = conn.storeFileFromOffset(share.name, 'test/'+ts+'.h264', record, pos)
+                    print('Motion stopped!')
                 else:
                     print('No motion')
         finally:
