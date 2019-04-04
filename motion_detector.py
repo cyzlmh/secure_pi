@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 from smb.SMBConnection import SMBConnection
 
-MIN_AREA = 100
+MIN_AREA = 800
 WIDTH = 640
 HIGTH = 480
 email_freq = 30*60
@@ -91,7 +91,7 @@ if __name__ == '__main__':
                     camera.capture(prefix+'.jpg', use_video_port=True)
                     if datetime.now() - last_detect > timedelta(0, email_freq):
                         #os.system('python3 /home/pi/scripts/send_email.py anto_nozomi@126.com '\
-                        #    +ts_str()+'-motion-detect null')
+                        #    +ts_str()+'-motion-detect null '+prefix+'.jpg')
                         last_detect = datetime.now()
                     # As soon as we detect motion, split the recording to
                     # record the frames "after" motion
