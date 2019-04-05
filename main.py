@@ -4,7 +4,7 @@ from datetime import datetime
 import numpy as np
 from detect_motion import *
 from smb_storage import *
-from send_email import *
+from send_email import send_email
 
 WIDTH = 640
 HIGTH = 480
@@ -32,14 +32,12 @@ if __name__ == '__main__':
         stream_1 = io.BytesIO()
         stream_2 = io.BytesIO() 
         prior = None
-            
+
         try:
             # connect to smb server
-            conn = H100Connection()
-            conn.connect()
-            share = conn.get_share()
+            conn, share = connect_h100()
             print('smb server connected')
-            
+
             # warm up camera
             camera.start_recording(cache_stream, format='h264', quality=25)
             camera.wait_recording(2)
@@ -56,20 +54,21 @@ if __name__ == '__main__':
                     capture_path = os.path.join(storage_path, ts+'.jpg')
                     video_path = os.path.join('test/', ts+'.h264')
                     camera.capture(capture_path, use_video_port=True)
-                    
+
                     stream_1.truncate(0)
                     camera.split_recording(stream_1)
                     # As soon as we detect motion, split the recording
                     # Write the 10 seconds "before" motion to disk as well
                     stream_2.truncate(0)
                     cache_stream.copy_to(stream_2, seconds=10)
+                    stream_2.seek(0)
                     pos = conn.storeFileFromOffset(share.name, 'test/'+ts+'.h264', stream_2)
                     cache_stream.clear()
                     recording_on = 1
 
                     # send email alert
-                    threading.Thread(target=send_email, args=(storage_path,))
-
+                    email_thread = threading.Thread(target=send_email, args=(capture_path,))
+                    email_thread.start()
                     wait(camera, sample_rate)
                     motion, prior = detect_motion(camera, WIDTH, HIGTH, prior)
                     # Wait until motion is no longer detected, then split

@@ -26,11 +26,13 @@ def find_moving_objs(image_1, image_2):
     return objs
 
 def detect_motion(camera, width, highth, prior):
-    if prior is None:
-        return False
     stream = BytesIO()
     camera.capture(stream, format='bgr', use_video_port=True)
     stream.seek(0)
     image = np.frombuffer(stream.read(), dtype=np.uint8).reshape(highth, width, 3)
     image = preprocess(image)
-    return len(find_moving_objs(prior, image)) > 0, image
+    if prior is None:
+        return False, image
+    else:
+        return len(find_moving_objs(prior, image)) > 0, image
+
