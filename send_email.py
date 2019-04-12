@@ -8,7 +8,6 @@ def send_email(file_path=None):
     last_send = datetime.strptime(last_send, '%Y%m%d-%H%M%S')
 
     if datetime.now()-last_send > timedelta(0, email_freq):
-        print('here')
         ts = datetime.now().strftime('%Y%m%d-%H%M%S')
         to = 'anto_nozomi@126.com'
         title = ts + '-motion-detect'

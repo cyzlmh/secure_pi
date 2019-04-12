@@ -62,7 +62,12 @@ if __name__ == '__main__':
                     stream_2.truncate(0)
                     cache_stream.copy_to(stream_2, seconds=10)
                     stream_2.seek(0)
-                    pos = conn.storeFileFromOffset(share.name, 'test/'+ts+'.h264', stream_2)
+                    try:
+                        pos = conn.storeFileFromOffset(share.name, video_path, stream_2)
+                    except Exception as e:
+                        print(e)
+                        conn.close()
+                        conn, share = connect_h100()
                     cache_stream.clear()
                     recording_on = 1
 
@@ -75,21 +80,41 @@ if __name__ == '__main__':
                     # recording back to the in-memory circular buffer
                     while motion:
                         if recording_on == 1:
-                            pos = swift_record(camera, conn, stream_1, stream_2, pos, video_path)
+                            try:
+                                pos = swift_record(camera, conn, stream_1, stream_2, pos, video_path)
+                            except Exception as e:
+                                print(e)
+                                conn.close()
+                                conn, share = connect_h100()
                             recording_on = 2
                             wait(camera, sample_rate)
                         else:
-                            pos = swift_record(camera, conn, stream_2, stream_1, pos, video_path)
+                            try:
+                                pos = swift_record(camera, conn, stream_2, stream_1, pos, video_path)
+                            except Exception as e:
+                                print(e)
+                                conn.close()
+                                conn, share = connect_h100()
                             recording_on = 1
                             wait(camera, sample_rate)
                         motion, prior = detect_motion(camera, WIDTH, HIGTH, prior)
                     camera.split_recording(cache_stream)
                     if recording_on == 1:
                         stream_1.seek(0)
-                        pos = conn.storeFileFromOffset(share.name, video_path, stream_1, pos)
+                        try:
+                            pos = conn.storeFileFromOffset(share.name, video_path, stream_1, pos)
+                        except Exception as e:
+                            print(e)
+                            conn.close()
+                            conn, share = connect_h100()
                     else:
                         stream_2.seek(0)
-                        pos = conn.storeFileFromOffset(share.name, video_path, stream_2, pos)
+                        try:
+                            pos = conn.storeFileFromOffset(share.name, video_path, stream_2, pos)
+                        except Exception as e:
+                            print(e)
+                            conn.close()
+                            conn, share = connect_h100()
                     print('Motion stopped!')
                 else:
                     print('No motion')
