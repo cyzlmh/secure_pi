@@ -16,12 +16,21 @@ def wait(camera, sec):
         camera.annotate_text = datetime.now().strftime('%Y%m%d-%H%M%S')
         camera.wait_recording(1)
 
-def swift_record(camera, conn, stream_1, stream_2, pos, filepath):
+def swift_record(camera, conn, share, video_path, stream_1, stream_2, pos):
     stream_2.truncate(0)
     camera.split_recording(stream_2)
     stream_1.seek(0)
-    pos = conn.storeFileFromOffset(share.name, filepath, stream_1, pos)
+    pos, conn, share = write_record(conn, share, video_path, stream_1, pos)
     return pos
+
+def write_record(conn, share, video_path, stream, pos):
+    try:
+        pos = conn.storeFileFromOffset(share.name, video_path, stream, pos)
+    except Exception as e:
+        print(e)
+        conn.close()
+        conn, share = connect_h100()
+    return pos, conn, share
 
 if __name__ == '__main__':
     with picamera.PiCamera() as camera:
@@ -62,12 +71,9 @@ if __name__ == '__main__':
                     stream_2.truncate(0)
                     cache_stream.copy_to(stream_2, seconds=10)
                     stream_2.seek(0)
-                    try:
-                        pos = conn.storeFileFromOffset(share.name, video_path, stream_2)
-                    except Exception as e:
-                        print(e)
-                        conn.close()
-                        conn, share = connect_h100()
+                    pos = 0
+                    pos, conn, share = write_record(conn, share, video_path, stream_2, pos)
+
                     cache_stream.clear()
                     recording_on = 1
 
@@ -80,41 +86,21 @@ if __name__ == '__main__':
                     # recording back to the in-memory circular buffer
                     while motion:
                         if recording_on == 1:
-                            try:
-                                pos = swift_record(camera, conn, stream_1, stream_2, pos, video_path)
-                            except Exception as e:
-                                print(e)
-                                conn.close()
-                                conn, share = connect_h100()
+                            pos, conn, share = swift_record(camera, conn, share, video_path, stream_1, stream_2, pos)
                             recording_on = 2
                             wait(camera, sample_rate)
                         else:
-                            try:
-                                pos = swift_record(camera, conn, stream_2, stream_1, pos, video_path)
-                            except Exception as e:
-                                print(e)
-                                conn.close()
-                                conn, share = connect_h100()
+                            pos, conn, share = swift_record(camera, conn, share, video_path, stream_2, stream_1, pos)
                             recording_on = 1
                             wait(camera, sample_rate)
                         motion, prior = detect_motion(camera, WIDTH, HIGTH, prior)
                     camera.split_recording(cache_stream)
                     if recording_on == 1:
                         stream_1.seek(0)
-                        try:
-                            pos = conn.storeFileFromOffset(share.name, video_path, stream_1, pos)
-                        except Exception as e:
-                            print(e)
-                            conn.close()
-                            conn, share = connect_h100()
+                        pos, conn, share = write_record(conn, share, video_path, stream_1, pos)
                     else:
                         stream_2.seek(0)
-                        try:
-                            pos = conn.storeFileFromOffset(share.name, video_path, stream_2, pos)
-                        except Exception as e:
-                            print(e)
-                            conn.close()
-                            conn, share = connect_h100()
+                        pos, conn, share = write_record(conn, share, video_path, stream_2, pos)
                     print('Motion stopped!')
                 else:
                     print('No motion')
