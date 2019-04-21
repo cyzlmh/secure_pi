@@ -16,21 +16,12 @@ def wait(camera, sec):
         camera.annotate_text = datetime.now().strftime('%Y%m%d-%H%M%S')
         camera.wait_recording(1)
 
-def swift_record(camera, conn, share, video_path, stream_1, stream_2, pos):
+def swift_record(camera, conn, stream_1, stream_2, pos, filepath):
     stream_2.truncate(0)
     camera.split_recording(stream_2)
     stream_1.seek(0)
-    pos, conn, share = write_record(conn, share, video_path, stream_1, pos)
+    pos = conn.storeFileFromOffset(share.name, filepath, stream_1, pos)
     return pos
-
-def write_record(conn, share, video_path, stream, pos):
-    try:
-        pos = conn.storeFileFromOffset(share.name, video_path, stream, pos)
-    except Exception as e:
-        print(e)
-        conn.close()
-        conn, share = connect_h100()
-    return pos, conn, share
 
 if __name__ == '__main__':
     with picamera.PiCamera() as camera:
@@ -41,12 +32,14 @@ if __name__ == '__main__':
         stream_1 = io.BytesIO()
         stream_2 = io.BytesIO() 
         prior = None
-
+            
         try:
             # connect to smb server
-            conn, share = connect_h100()
+            conn = H100Connection()
+            conn.connect()
+            share = conn.get_share()
             print('smb server connected')
-
+            
             # warm up camera
             camera.start_recording(cache_stream, format='h264', quality=25)
             camera.wait_recording(2)
@@ -60,11 +53,10 @@ if __name__ == '__main__':
                     print('Motion detected!')
                     # take a picture
                     ts = datetime.now().strftime('%Y%m%d-%H%M%S')
-                    ts_date = datetime.now().strftime('%Y%m%d')
                     capture_path = os.path.join(storage_path, ts+'.jpg')
-                    video_path = os.path.join(ts_date, ts+'.h264')
+                    video_path = os.path.join('test/', ts+'.h264')
                     camera.capture(capture_path, use_video_port=True)
-
+                    
                     stream_1.truncate(0)
                     camera.split_recording(stream_1)
                     # As soon as we detect motion, split the recording
@@ -72,36 +64,34 @@ if __name__ == '__main__':
                     stream_2.truncate(0)
                     cache_stream.copy_to(stream_2, seconds=10)
                     stream_2.seek(0)
-                    pos = 0
-                    pos, conn, share = write_record(conn, share, video_path, stream_2, pos)
-
+                    pos = conn.storeFileFromOffset(share.name, 'test/'+ts+'.h264', stream_2)
                     cache_stream.clear()
                     recording_on = 1
 
                     # send email alert
-                    email_thread = threading.Thread(target=send_email, args=(capture_path,))
-                    email_thread.start()
+                    threading.Thread(target=send_email, args=(storage_path,))
+
                     wait(camera, sample_rate)
                     motion, prior = detect_motion(camera, WIDTH, HIGTH, prior)
                     # Wait until motion is no longer detected, then split
                     # recording back to the in-memory circular buffer
                     while motion:
                         if recording_on == 1:
-                            pos, conn, share = swift_record(camera, conn, share, video_path, stream_1, stream_2, pos)
+                            pos = swift_record(camera, conn, stream_1, stream_2, pos, video_path)
                             recording_on = 2
                             wait(camera, sample_rate)
                         else:
-                            pos, conn, share = swift_record(camera, conn, share, video_path, stream_2, stream_1, pos)
+                            pos = swift_record(camera, conn, stream_2, stream_1, pos, video_path)
                             recording_on = 1
                             wait(camera, sample_rate)
                         motion, prior = detect_motion(camera, WIDTH, HIGTH, prior)
                     camera.split_recording(cache_stream)
                     if recording_on == 1:
                         stream_1.seek(0)
-                        pos, conn, share = write_record(conn, share, video_path, stream_1, pos)
+                        pos = conn.storeFileFromOffset(share.name, video_path, stream_1, pos)
                     else:
                         stream_2.seek(0)
-                        pos, conn, share = write_record(conn, share, video_path, stream_2, pos)
+                        pos = conn.storeFileFromOffset(share.name, video_path, stream_2, pos)
                     print('Motion stopped!')
                 else:
                     print('No motion')
